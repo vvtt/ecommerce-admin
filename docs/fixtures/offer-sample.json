@@ -1,0 +1,75 @@
+{
+  "_comment": "采集接口的固定测试载荷。字段结构对应 src/types.ts 的 CollectedOffer。_comment 会被后端忽略。图片 URL 用真实的 cbu01 域名形态，用于验证防盗链行为（Phase 0 第 8 项）。",
+  "platform": "1688",
+  "offerId": "612345678901",
+  "url": "https://detail.1688.com/offer/612345678901.html",
+  "title": "跨境专供 TWS 蓝牙耳机 5.3 入耳式 降噪 长续航 外贸批发",
+  "supplier": {
+    "name": "深圳市恒通电子有限公司",
+    "loginId": "hengtong_dz",
+    "location": "广东 深圳",
+    "shopUrl": "https://hengtong-dz.1688.com"
+  },
+  "moq": 2,
+  "priceLadder": [
+    { "beginAmount": 2, "endAmount": 99, "price": 28.5 },
+    { "beginAmount": 100, "endAmount": 999, "price": 25.8 },
+    { "beginAmount": 1000, "price": 22.4 }
+  ],
+  "specDimensions": [
+    { "name": "颜色", "values": ["黑色", "白色", "粉色"] },
+    { "name": "规格", "values": ["标准版", "降噪版"] }
+  ],
+  "skus": [
+    {
+      "skuId": "4901234567001",
+      "specValues": { "颜色": "黑色", "规格": "标准版" },
+      "price": 28.5,
+      "stock": 8642,
+      "imageUrl": "https://cbu01.alicdn.com/img/ibank/O1CN01black_standard.jpg"
+    },
+    {
+      "skuId": "4901234567002",
+      "specValues": { "颜色": "白色", "规格": "标准版" },
+      "price": 28.5,
+      "stock": 5210,
+      "imageUrl": "https://cbu01.alicdn.com/img/ibank/O1CN01white_standard.jpg"
+    },
+    {
+      "skuId": "4901234567003",
+      "specValues": { "颜色": "黑色", "规格": "降噪版" },
+      "price": 36.0,
+      "stock": 3105,
+      "imageUrl": "https://cbu01.alicdn.com/img/ibank/O1CN01black_anc.jpg"
+    },
+    {
+      "skuId": "4901234567004",
+      "specValues": { "颜色": "粉色", "规格": "降噪版" },
+      "price": 36.0,
+      "stock": 980
+    }
+  ],
+  "attributes": [
+    { "name": "品牌", "value": "恒通" },
+    { "name": "型号", "value": "HT-TWS5" },
+    { "name": "蓝牙版本", "value": "5.3" },
+    { "name": "续航时间", "value": "6 小时" },
+    { "name": "货号", "value": "HT-2024-TWS" },
+    { "name": "是否跨境货源", "value": "是" }
+  ],
+  "images": {
+    "main": [
+      "https://cbu01.alicdn.com/img/ibank/O1CN01main01_ht.jpg",
+      "https://cbu01.alicdn.com/img/ibank/O1CN01main02_ht.jpg",
+      "https://cbu01.alicdn.com/img/ibank/O1CN01main03_ht.jpg"
+    ],
+    "detail": [
+      "https://cbu01.alicdn.com/img/ibank/O1CN01detail01_ht.jpg",
+      "https://cbu01.alicdn.com/img/ibank/O1CN01detail02_ht.jpg"
+    ]
+  },
+  "weightGram": 45,
+  "dimensions": { "length": 6.5, "width": 4.2, "height": 2.8 },
+  "extractorVersion": "1688-page-v1",
+  "capturedAt": "2026-09-20T08:30:00.000Z"
+}

@@ -1,0 +1,25 @@
+node_modules/
+build/
+dist/
+coverage/
+.DS_Store
+*.log
+.env*
+!.env.example
+
+# 采集域运行时数据（SQLite 库 / 转存的图片 / 采集令牌）
+server/sourcing/db.sqlite
+server/sourcing/db.sqlite-*
+server/sourcing/uploads/
+server/sourcing/collect-token.txt
+
+# 竞品域运行时数据（SQLite 库 / 插件上报落盘的商品、评论、凭证、原始响应）
+server/competitor/shopee.db
+server/competitor/shopee.db-*
+server/competitor/data/
+
+# 登录会话签名密钥（泄露可伪造任意登录 token）
+server/auth-secret.txt
+
+# WorkBuddy 本地工作数据（工作记忆/会话日志，非项目代码）
+.workbuddy/

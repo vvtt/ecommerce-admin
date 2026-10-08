@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <title>Cross-Border Sourcing · 设置</title>
+    <style>
+      body {
+        max-width: 620px;
+        margin: 0 auto;
+        padding: 28px 24px 40px;
+        font: 14px/1.7 -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+        color: #1f2328;
+      }
+      h1 { font-size: 18px; margin: 0 0 6px; }
+      p.lead { color: #59636e; margin: 0 0 22px; }
+      label { display: block; font-weight: 600; margin: 18px 0 6px; }
+      input {
+        width: 100%; box-sizing: border-box; padding: 8px 10px;
+        font: inherit; font-family: ui-monospace, Consolas, monospace;
+        border: 1px solid #d8dee4; border-radius: 6px;
+      }
+      input:focus { outline: 2px solid #0969da33; border-color: #0969da; }
+      .hint { color: #59636e; font-size: 12px; margin: 5px 0 0; }
+      code {
+        background: #f6f8fa; padding: 1px 5px; border-radius: 4px;
+        font-family: ui-monospace, Consolas, monospace; font-size: 12px;
+      }
+      .actions { display: flex; gap: 10px; align-items: center; margin-top: 26px; }
+      button {
+        font: inherit; font-weight: 600; padding: 8px 18px;
+        border-radius: 6px; border: 1px solid #d8dee4; background: #f6f8fa; cursor: pointer;
+      }
+      button:hover { background: #eaeef2; }
+      button.primary { background: #1f883d; border-color: #1f883d; color: #fff; }
+      button.primary:hover { background: #1a7f37; }
+      #status { margin-top: 16px; min-height: 22px; white-space: pre-wrap; }
+      .ok { color: #1a7f37; }
+      .err { color: #cf222e; }
+      hr { border: 0; border-top: 1px solid #d8dee4; margin: 30px 0 0; }
+      .note { color: #59636e; font-size: 12px; }
+      .note li { margin-bottom: 4px; }
+    </style>
+  </head>
+  <body>
+    <h1>Cross-Border Sourcing · 设置</h1>
+    <p class="lead">采集只在你点击浮层按钮时发生，不上报任何页面对象以外的数据。</p>
+
+    <label for="backendUrl">后端地址</label>
+    <input id="backendUrl" type="url" placeholder="http://localhost:3000" spellcheck="false" />
+    <p class="hint">
+      改地址后要**同步改** <code>manifest.json</code> 的 <code>host_permissions</code>
+      并重新加载扩展，否则 service worker 发不出请求（跨域被拦）。
+    </p>
+
+    <label for="collectToken">采集 token（X-Collect-Token）</label>
+    <input id="collectToken" type="text" placeholder="粘贴后端启动时打印的 token" spellcheck="false" />
+    <p class="hint">
+      后端启动时会打印，也存在 <code>server/sourcing/collect-token.txt</code>。
+      没配 token 时采集会被后端拒绝（401）。
+    </p>
+
+    <div class="actions">
+      <button class="primary" id="save">保存</button>
+      <button id="test">测试连接</button>
+    </div>
+
+    <div id="status"></div>
+
+    <hr />
+    <p class="note">这个扩展申请了什么权限，以及为什么：</p>
+    <ul class="note">
+      <li><code>permissions</code> 只有一项 <code>storage</code> —— 就是用来存上面这两项配置的。</li>
+      <li>
+        <code>host_permissions</code> 只有 <code>*.1688.com</code> 和本地后端。
+        <strong>没有 <code>cookies</code>、没有 <code>webRequest</code>、没有 <code>&lt;all_urls&gt;</code>。</strong>
+        不申请 cookies 权限，就意味着扩展在权限层面根本调不到 <code>chrome.cookies</code> ——
+        这是结构性保证，不是靠自觉。
+      </li>
+      <li>
+        页面数据只在 1688 商品页的 MAIN world 里读取，且**逐字段构造载荷**，
+        从不整体上报页面对象。
+      </li>
+    </ul>
+
+    <script src="options.js"></script>
+  </body>
+</html>

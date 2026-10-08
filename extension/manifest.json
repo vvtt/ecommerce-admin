@@ -1,0 +1,44 @@
+{
+  "manifest_version": 3,
+  "name": "Cross-Border Sourcing",
+  "version": "0.1.0",
+  "minimum_chrome_version": "111",
+
+  "permissions": ["storage"],
+
+  "host_permissions": [
+    "*://*.1688.com/*",
+    "http://localhost/*",
+    "http://127.0.0.1/*"
+  ],
+
+  "background": {
+    "service_worker": "background.js"
+  },
+
+  "content_scripts": [
+    {
+      "matches": ["*://*.1688.com/offer/*"],
+      "js": ["main-world.js"],
+      "run_at": "document_start",
+      "world": "MAIN",
+      "all_frames": false
+    },
+    {
+      "matches": ["*://*.1688.com/offer/*"],
+      "js": ["isolated.js"],
+      "run_at": "document_idle",
+      "world": "ISOLATED",
+      "all_frames": false
+    }
+  ],
+
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
+  },
+
+  "action": {
+    "default_title": "Cross-Border Sourcing 设置"
+  }
+}
