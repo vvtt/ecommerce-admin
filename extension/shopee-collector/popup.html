@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<style>
+  body { width: 360px; margin: 0; font: 13px/1.6 "Segoe UI", "Microsoft YaHei", sans-serif; color: #222; }
+  h1 { font-size: 14px; margin: 0; padding: 10px 14px 8px; background: #f4f5f7; border-bottom: 1px solid #e3e5e8; }
+  .sec { padding: 10px 14px; border-bottom: 1px solid #eee; }
+  .sec:last-child { border-bottom: none; }
+  label { font-size: 12px; color: #555; display: block; margin-bottom: 4px; }
+  input[type=text] { width: 100%; box-sizing: border-box; padding: 5px 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 12px; }
+  button { margin: 4px 6px 0 0; padding: 6px 10px; border: 1px solid #c9c9c9; border-radius: 4px; background: #f8f8f8; cursor: pointer; font-size: 12px; }
+  button:hover { background: #ececec; }
+  button.primary { background: #ee4d2d; border-color: #ee4d2d; color: #fff; }
+  button.primary:hover { background: #d7421f; }
+  .ids { font-size: 12px; color: #333; word-break: break-all; }
+  .buffer { margin-top: 6px; font-size: 12px; color: #555; background: #f6f8fa; border-radius: 4px; padding: 6px 8px; }
+  .stat { font-size: 12px; color: #444; }
+  .stat b { color: #111; }
+  #status { margin-top: 6px; font-size: 12px; color: #0a6b2d; word-break: break-all; }
+  #status.err { color: #c0392b; }
+  .health-ok { color: #0a6b2d; } .health-bad { color: #c0392b; }
+  .hint { font-size: 11px; color: #888; margin-top: 4px; }
+</style>
+</head>
+<body>
+  <h1>Shopee 商品抓取助手 <span style="font-weight:normal;font-size:11px;color:#888">手动模式</span></h1>
+
+  <div class="sec">
+    <div class="ids" id="ids">读取当前标签页…</div>
+    <div class="buffer" id="buffer">缓冲区：查询中…</div>
+    <button id="btnPdp" class="primary">📦 抓取商品详情</button>
+    <button id="btnFlushRatings">💬 抓取页面已加载的评论</button>
+    <button id="btnRatings">⭐ 自动拉取全部评论</button>
+    <div class="hint">数据不会随页面刷新自动上传，点按钮才发送</div>
+    <div id="status"></div>
+  </div>
+
+  <div class="sec">
+    <button id="btnLd">🧩 JSON-LD 兜底解析</button>
+    <button id="btnHtml">📤 发送页面HTML</button>
+    <button id="btnCookie">🔑 发送登录 Cookie 到后端</button>
+  </div>
+
+  <div class="sec stat" id="stats">统计加载中…</div>
+
+  <div class="sec">
+    <label for="backend">后端地址</label>
+    <input type="text" id="backend" placeholder="http://127.0.0.1:8787">
+    <button id="btnSave">保存</button>
+    <span id="health"></span>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

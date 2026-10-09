@@ -12,7 +12,7 @@
     "lint": "tsc --noEmit",
     "lint:extension": "tsc -p extension --noEmit",
     "test:sourcing": "tsx server/sourcing/smoke.ts",
-    "test:extension": "node extension/test/extractor.smoke.mjs && node extension/test/bridge.smoke.mjs"
+    "test:extension": "node extension/1688-sourcing/test/extractor.smoke.mjs && node extension/1688-sourcing/test/bridge.smoke.mjs"
   },
   "dependencies": {
     "@radix-ui/react-avatar": "^1.2.6",

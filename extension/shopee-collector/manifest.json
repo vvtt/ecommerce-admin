@@ -1,0 +1,34 @@
+{
+  "manifest_version": 3,
+  "name": "Shopee 商品抓取助手",
+  "version": "1.0.0",
+  "description": "在已登录的 Shopee 商品页内截获 API 数据（标题/规格/描述/评论）与登录 Cookie，推送到本地后端服务。",
+  "minimum_chrome_version": "111",
+  "permissions": ["cookies", "storage"],
+  "host_permissions": [
+    "https://*.xiapibuy.com/*",
+    "https://shopee.tw/*",
+    "http://localhost/*",
+    "http://127.0.0.1/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Shopee 商品抓取助手"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://*.xiapibuy.com/*", "https://shopee.tw/*"],
+      "js": ["inject.js"],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": ["https://*.xiapibuy.com/*", "https://shopee.tw/*"],
+      "js": ["content.js"],
+      "run_at": "document_start"
+    }
+  ]
+}

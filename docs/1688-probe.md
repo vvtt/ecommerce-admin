@@ -411,8 +411,8 @@ var offer_details={"content":"<div id=\"offer-template-0\"></div><img style=\"di
    15 个 `<img>` 就是它的全部内容。**详情图失败与视频无关。**
 
 正确做法：先按 JSON 解出 `content`，再交给 `DOMParser`；解不出就**一张都不发 + 明确告警**，
-不要退回「当 HTML 硬解析」。代码见 `extension/main-world.js` 的 `detailHtmlOf()`，
-回归测试见 `extension/test/extractor.smoke.mjs` 的 fixture `DETAIL_BODY`。
+不要退回「当 HTML 硬解析」。代码见 `extension/1688-sourcing/main-world.js` 的 `detailHtmlOf()`，
+回归测试见 `extension/1688-sourcing/test/extractor.smoke.mjs` 的 fixture `DETAIL_BODY`。
 
 > 这条更正的价值在于它示范了本项目的判断标准：一条能产出**看起来合法**的坏数据的
 > 解析路径，比一条会明确报错的路径危险得多。同 §9.2 处理未知 `priceDisplayType` 的
