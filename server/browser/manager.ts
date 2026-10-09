@@ -182,7 +182,8 @@ export async function closeBrowser(): Promise<void> {
 
 export async function navigate(url: string): Promise<void> {
   await ensureBrowser();
-  if (!url.startsWith("http://") && !url.startsWith("https://")) {
+  // 只给「裸域名」补 https://；已有 scheme（http:/data:/about: 等）的原样保留
+  if (!/^[a-z][a-z0-9+.-]*:/i.test(url)) {
     url = `https://${url}`;
   }
   await page!.goto(url, { waitUntil: "domcontentloaded", timeout: 45_000 }).catch(() => undefined);
@@ -235,10 +236,26 @@ export interface KeyInput {
   action: "down" | "up";
   key: string;
   code: string;
+  /** 浏览器真实 keyCode。Chromium 的编辑类按键（退格/回车/方向键/Delete）按它分发，缺省 0 等于没按 */
+  keyCode?: number;
   ctrl?: boolean;
   shift?: boolean;
   alt?: boolean;
 }
+
+/** 客户端旧缓存未带 keyCode 时的兜底表（覆盖常用编辑/导航键） */
+const FALLBACK_KEY_CODES: Record<string, number> = {
+  Backspace: 8,
+  Tab: 9,
+  Enter: 13,
+  Escape: 27,
+  " ": 32,
+  ArrowLeft: 37,
+  ArrowUp: 38,
+  ArrowRight: 39,
+  ArrowDown: 40,
+  Delete: 46,
+};
 
 export async function dispatchKey(input: KeyInput): Promise<void> {
   if (!cdp) return;
@@ -246,7 +263,7 @@ export async function dispatchKey(input: KeyInput): Promise<void> {
     type: input.action === "down" ? "keyDown" : "keyUp",
     key: input.key,
     code: input.code,
-    windowsVirtualKeyCode: 0,
+    windowsVirtualKeyCode: input.keyCode ?? FALLBACK_KEY_CODES[input.key] ?? 0,
     modifiers:
       (input.ctrl ? 2 : 0) | (input.shift ? 8 : 0) | (input.alt ? 1 : 0),
   }).catch(() => undefined);

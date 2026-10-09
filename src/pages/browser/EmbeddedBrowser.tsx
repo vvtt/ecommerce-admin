@@ -178,6 +178,8 @@ function EmbeddedBrowserPage() {
         action: "down",
         key: e.key,
         code: e.code,
+        // Chromium 编辑类按键按 keyCode 分发，必须透传真实值，否则退格/回车/方向键失效
+        keyCode: e.keyCode,
         ctrl: e.ctrlKey,
         shift: e.shiftKey,
         alt: e.altKey,
@@ -188,7 +190,7 @@ function EmbeddedBrowserPage() {
 
   const onKeyUp = useCallback(
     (e: React.KeyboardEvent) => {
-      send({ type: "key", action: "up", key: e.key, code: e.code });
+      send({ type: "key", action: "up", key: e.key, code: e.code, keyCode: e.keyCode });
     },
     [send]
   );
