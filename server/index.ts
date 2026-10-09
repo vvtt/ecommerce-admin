@@ -7,11 +7,12 @@
  * 启动：npm run dev（tsx server/index.ts）
  */
 import express from "express";
-import path from "path";
+import path from "node:path";
 import { createServer as createViteServer } from "vite";
 import { getOverview } from "../shared/queries";
 import { categoriesRouter } from "./routes/categories";
 import { authRouter, requireApiAuth } from "./routes/auth";
+import { browserRouter, handleBrowserUpgrade } from "./routes/browser";
 import { competitorRouter } from "./routes/competitor";
 import { inventoryRouter } from "./routes/inventory";
 import { productsRouter } from "./routes/products";
@@ -51,6 +52,7 @@ async function startServer() {
   app.use("/api/purchase-orders", purchaseRouter);
   app.use("/api/sourcing", sourcingRouter);
   app.use("/api/competitor", competitorRouter);
+  app.use("/api/browser", browserRouter);
 
   // 未匹配到的 /api/* 返回 404 JSON，避免被下面的 SPA 回退吞成 index.html
   app.use("/api", (_req, res) => {
@@ -83,7 +85,7 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
+  const httpServer = app.listen(PORT, "0.0.0.0", () => {
     console.log(`跨境电商后台已启动 → http://localhost:${PORT}`);
     console.log(`[sourcing] ${describeCollectToken()}`);
 
@@ -92,6 +94,11 @@ async function startServer() {
     void ingestStuckPending().catch((error) => {
       console.error("[sourcing] 启动补跑图片转存失败", error);
     });
+  });
+
+  // 内嵌浏览器的 WebSocket 通道：upgrade 事件不经过 express 路由，需在 http server 上单独挂
+  httpServer.on("upgrade", (request, socket, head) => {
+    handleBrowserUpgrade(request, socket, head);
   });
 }
 

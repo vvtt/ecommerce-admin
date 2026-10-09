@@ -19,6 +19,7 @@ import PurchaseDetail from "@/src/pages/purchase/PurchaseDetail";
 import SourcingList from "@/src/pages/sourcing/SourcingList";
 import SourcingDetail from "@/src/pages/sourcing/SourcingDetail";
 import CompetitorProducts from "@/src/pages/competitor/CompetitorProducts";
+import EmbeddedBrowser from "@/src/pages/browser/EmbeddedBrowser";
 import Login from "@/src/pages/Login";
 import NotFound from "@/src/pages/NotFound";
 import { getSession } from "@/src/lib/auth";
@@ -70,6 +71,7 @@ export default function App() {
           <Route path="/sourcing/:id" element={<SourcingDetail />} />
 
           <Route path="/competitor/products" element={<CompetitorProducts />} />
+        <Route path="/competitor/browser" element={<EmbeddedBrowser />} />
 
           <Route path="/404" element={<NotFound />} />
           {/* 布局内兜底：未匹配路径也留在后台外壳里，而不是白屏 */}

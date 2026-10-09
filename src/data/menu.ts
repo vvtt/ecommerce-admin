@@ -54,6 +54,7 @@ export const MENU_TREE: MenuNode[] = [
     iconName: "Trophy",
     children: [
       { id: "competitor-products", title: "竞品商品", path: "/competitor/products" },
+      { id: "competitor-browser", title: "内嵌浏览器", path: "/competitor/browser" },
     ],
   },
 ];
