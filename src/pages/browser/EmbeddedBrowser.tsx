@@ -11,6 +11,7 @@
  * - Tab/space 等会移动宿主页焦点的按键一律 preventDefault 后转发
  */
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { ArrowLeft, Loader2, RotateCw, X } from "lucide-react";
 import { PageHeader } from "@/src/components/shared/PageHeader";
 import { Button } from "@/src/components/ui/button";
@@ -33,6 +34,11 @@ function EmbeddedBrowserPage() {
   const [urlInput, setUrlInput] = useState("");
   const frameSeqRef = useRef(0);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // 竞品列表「打开」跳转进来时携带的初始 URL：WS 建连后自动导航一次。
+  // 用 ref 记状态而非 state —— 只在连接回调里消费，不需要触发渲染
+  const [searchParams] = useSearchParams();
+  const initialUrlRef = useRef(searchParams.get("url"));
+  const initialNavSentRef = useRef(false);
 
   const send = useCallback((payload: Record<string, unknown>) => {
     wsRef.current?.send(JSON.stringify(payload));
@@ -52,7 +58,15 @@ function EmbeddedBrowserPage() {
       );
       wsRef.current = ws;
 
-      ws.onopen = () => setConn("starting");
+      ws.onopen = () => {
+        setConn("starting");
+        // 携带 ?url= 进入（如竞品商品页跳转）：建连即导航，且只导航一次 ——
+        // 断线重连后不再重发，那时服务端会把当前 URL 推回来同步地址栏
+        if (!initialNavSentRef.current && initialUrlRef.current) {
+          initialNavSentRef.current = true;
+          ws.send(JSON.stringify({ type: "navigate", url: initialUrlRef.current }));
+        }
+      };
       ws.onmessage = (event) => {
         const msg = JSON.parse(event.data as string) as {
           type: string;

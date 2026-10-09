@@ -6,6 +6,7 @@
  * 全量分页（q 为空时后端不加 WHERE）。
  */
 import { useCallback, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { Download, ExternalLink, Search } from "lucide-react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { PageHeader } from "@/src/components/shared/PageHeader";
@@ -133,17 +134,15 @@ export default function CompetitorProducts() {
           const url = row.original.url;
           if (!url) return <span className="text-xs text-slate-400">—</span>;
           return (
-            <a
-              href={url}
-              target="_blank"
-              rel="noopener noreferrer"
-              title={url}
+            <Link
+              to={`/competitor/browser?url=${encodeURIComponent(url)}`}
+              title={`在内嵌浏览器打开：${url}`}
               className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 hover:underline"
               onClick={(e) => e.stopPropagation()}
             >
               <ExternalLink className="h-3.5 w-3.5" />
               打开
-            </a>
+            </Link>
           );
         },
       },
