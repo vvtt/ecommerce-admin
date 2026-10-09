@@ -23,6 +23,8 @@ server/auth-secret.txt
 
 # 内嵌浏览器的 Edge 用户数据（含登录态 Cookie，属机器本机数据）
 server/browser/profile/
+# 内嵌浏览器的插件挂载清单（路径因机器而异；模板见 extensions.example.json）
+server/browser/extensions.json
 
 # WorkBuddy 本地工作数据（工作记忆/会话日志，非项目代码）
 .workbuddy/

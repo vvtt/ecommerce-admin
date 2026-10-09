@@ -20,6 +20,8 @@ import type { BrowserContext, CDPSession, Page } from "playwright-core";
 export const VIEWPORT = { width: 1280, height: 800 } as const;
 
 const PROFILE_DIR = path.join(process.cwd(), "server", "browser", "profile");
+/** 插件清单：路径相对项目根（与 PROFILE_DIR 同基准），绝对路径也兼容 */
+const EXTENSIONS_FILE = path.join(process.cwd(), "server", "browser", "extensions.json");
 /** 最后一个观看者离开后保留浏览器的时长（快速切页/刷新不重启浏览器） */
 const IDLE_CLOSE_MS = 5 * 60_000;
 
@@ -34,13 +36,21 @@ let idleTimer: NodeJS.Timeout | null = null;
 let starting: Promise<void> | null = null;
 
 /**
- * 环境变量 EMBEDDED_EXTENSIONS 指定要挂载的未打包插件目录（分号分隔）。
- * 插件随浏览器启动加载一次，挂在 profile 里长期有效。
+ * 从 server/browser/extensions.json 读取要挂载的未打包插件目录。
+ * 相对路径相对项目根解析（clone 即用，不绑定机器），绝对路径也兼容；
+ * 文件不存在视为不挂载。插件随浏览器启动加载一次，挂在 profile 里长期有效。
  */
 function extensionArgs(): string[] {
-  const raw = process.env.EMBEDDED_EXTENSIONS?.trim();
-  if (!raw) return [];
-  const dirs = raw.split(";").map((d) => path.resolve(d)).filter((d) => fs.existsSync(d));
+  let list: unknown;
+  try {
+    list = JSON.parse(fs.readFileSync(EXTENSIONS_FILE, "utf-8"));
+  } catch {
+    return []; // 不存在或 JSON 坏了都静默跳过——插件是可选能力，不该让浏览器起不来
+  }
+  const dirs = (Array.isArray(list) ? list : (list as { extensions?: unknown[] })?.extensions ?? [])
+    .filter((d): d is string => typeof d === "string" && d.trim() !== "")
+    .map((d) => path.resolve(process.cwd(), d.trim()))
+    .filter((d) => fs.existsSync(d));
   if (!dirs.length) return [];
   // disable-extensions-except 必须与 load-extension 同时给，否则其他内置插件会干扰截屏流
   return [`--disable-extensions-except=${dirs.join(",")}`, `--load-extension=${dirs.join(",")}`];

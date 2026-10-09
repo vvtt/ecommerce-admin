@@ -1,0 +1,7 @@
+{
+  "// 说明": "内嵌浏览器启动时挂载的未打包 Chrome/Edge 插件目录列表。相对路径相对项目根，绝对路径也可。复制本文件为 extensions.json 生效（extensions.json 不入库）。行内可用「//」开头的说明键。",
+  "extensions": [
+    "extension",
+    "C:/document/script/shopee/extension"
+  ]
+}
