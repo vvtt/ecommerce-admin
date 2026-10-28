@@ -53,8 +53,17 @@ export const MENU_TREE: MenuNode[] = [
     title: "竞品分析",
     iconName: "Trophy",
     children: [
+      { id: "competitor-tasks", title: "采集任务", path: "/competitor/tasks" },
       { id: "competitor-products", title: "竞品商品", path: "/competitor/products" },
-      { id: "competitor-browser", title: "内嵌浏览器", path: "/competitor/browser" },
+      { id: "competitor-browser", title: "浏览器监控", path: "/competitor/browser" },
+    ],
+  },
+  {
+    id: "descbatch",
+    title: "描述改写",
+    iconName: "FileText",
+    children: [
+      { id: "descbatch-tasks", title: "任务列表", path: "/descbatch" },
     ],
   },
 ];

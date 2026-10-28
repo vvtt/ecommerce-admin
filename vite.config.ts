@@ -28,7 +28,23 @@ export default defineConfig(() => {
       // Do not modifyâfile watching is disabled to prevent flickering during agent edits.
       hmr: process.env.DISABLE_HMR !== 'true',
       // Disable file watching when DISABLE_HMR is true to save CPU during agent edits.
-      watch: process.env.DISABLE_HMR === 'true' ? null : {},
+      watch: process.env.DISABLE_HMR === 'true' ? null : {
+        // 关键修复：服务端运行时数据都在项目目录内且被频繁写入（descbatch.db、
+        // sourcing/db.sqlite、competitor/shopee.db 的 WAL、browser/profile 的
+        // Edge 配置、uploads 转存图片）。Vite watch 到这些变更会触发整页
+        // full-reload —— 表现为「点一下操作按钮页面闪一下再跳回来」，看似
+        // 不是 SPA。忽略掉这些路径后 HMR 只响应 src/ 源码变更。
+        ignored: [
+          '**/server/descbatch/**',
+          '**/server/sourcing/db.sqlite*',
+          '**/server/sourcing/uploads/**',
+          '**/server/competitor/*.db*',
+          '**/server/competitor/data/**',
+          '**/server/browser/**',
+          '**/server/auth-secret.txt',
+          '**/server/**/collect-token.txt',
+        ],
+      },
     },
   };
 });

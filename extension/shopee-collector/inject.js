@@ -14,11 +14,15 @@
  *   /api/v2/item/get          旧版商品详情（兜底）
  *   /api/v2/item/get_ratings  评论
  *
+ *   （搜索结果采集已移除 —— 2026-10-21 用户决策：搜索采集只走平台 CDP 拦截，
+ *    插件在自己浏览器里偷偷上报搜索结果曾导致大量非预期入库）
+ *
  * 与 content.js 的通信一律走 window.postMessage，带 source/target 标记。
  */
 (function () {
   if (window.__shopee_ext_hook__) return;
   window.__shopee_ext_hook__ = true;
+  console.log('[shopee-ext] hook installed v3 (搜索采集已移除)');
 
   var TARGET = /\/api\/(v4\/pdp\/get_pc|v4\/item\/get|v2\/item\/get_ratings|v2\/item\/get)(?:\?|$)/;
 
@@ -43,8 +47,15 @@
     try { return new URL(url, location.origin); } catch (e) { return null; }
   }
 
+  function tryParse(text) {
+    try { return JSON.parse(text); } catch (e) { return null; }
+  }
+
   function inspect(u, text) {
-    if (!u || !TARGET.test(u.pathname)) return;
+    if (!u) return;
+    // 搜索结果采集已移除（2026-10-21）：搜索只由平台 CDP 拦截器处理，
+    // 插件不再上报，避免用户在自己浏览器里的调研搜索被静默入库。
+    if (!TARGET.test(u.pathname)) return;
     var j = null;
     try { j = JSON.parse(text); } catch (e) { return; }
     if (!j || !j.data) return;              // error=90309999 之类的错误响应不入缓冲

@@ -99,6 +99,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
 
+  // ---- 搜索结果批量上报已移除（2026-10-21 用户决策）----
+  // 搜索采集只走平台 CDP 拦截器；插件保留手动浏览 PDP/评论的缓冲上报。
+
   // ---- JSON-LD 兜底 ----
   if (msg.type === 'ldjson') {
     postIngest({ type: 'ldjson', shopId: msg.shopId, itemId: msg.itemId, data: msg.data })

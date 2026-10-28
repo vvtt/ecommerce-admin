@@ -58,6 +58,14 @@ export function getDb(): DatabaseSync {
   instance.exec("PRAGMA synchronous = NORMAL");
   instance.exec(SCHEMA_SQL);
 
+  // 增量列迁移：CREATE TABLE IF NOT EXISTS 不会给存量表补新列。
+  // review_file = 评论 JSONL 文件路径（相对 COMPETITOR_STORE_DIR）—— 评论改
+  // 文件存储后，DB 只存索引不存内容。
+  const cols = instance.prepare("PRAGMA table_info(products)").all() as { name: string }[];
+  if (!cols.some((c) => c.name === "review_file")) {
+    instance.exec("ALTER TABLE products ADD COLUMN review_file TEXT");
+  }
+
   db = instance;
   return db;
 }

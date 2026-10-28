@@ -8,7 +8,10 @@
  * 必须原样抛给调用方展示，绝不能被兜底逻辑吞掉假装成功。
  */
 import type {
+  AutoCollectResult,
   Category,
+  CollectTask,
+  CollectTaskItem,
   CompetitorProductDetail,
   CompetitorProductSummary,
   CompetitorQuery,
@@ -19,6 +22,7 @@ import type {
   Paginated,
   Product,
   PurchaseOrder,
+  RatingsBatchState,
   SourcingOfferDetail,
   SourcingOfferSummary,
   SourcingQuery,
@@ -310,6 +314,19 @@ export const api = {
       noOfflineSourcing
     ),
 
+  /**
+   * 链接自动采集：丢一个 1688 链接（APP 分享短链 / m 站 / PC 详情页均可），
+   * 后端在比特窗口里自动打开详情页并点妙手插件的「采集此商品」。
+   * 请求挂起 40~90s 才返回 —— fetch 默认无超时，正好挂得住。
+   */
+  collectSourcingFromUrl: (url: string) =>
+    apiSend<AutoCollectResult>(
+      "/api/sourcing/collect-from-url",
+      "POST",
+      { url },
+      noOfflineSourcing
+    ),
+
   /* ---------------- 竞品分析 ----------------
    * 与采集域同理：数据只在服务端 SQLite，全部走 noOfflineCompetitor 不兜底。
    */
@@ -324,6 +341,126 @@ export const api = {
       `/api/competitor/products/${encodeURIComponent(shopId)}/${encodeURIComponent(itemId)}`,
       noOfflineCompetitor
     ),
+
+  deleteCompetitorProduct: (shopId: string, itemId: string) =>
+    apiSend<{ ok: boolean }>(
+      `/api/competitor/products/${encodeURIComponent(shopId)}/${encodeURIComponent(itemId)}`,
+      "DELETE",
+      undefined,
+      noOfflineCompetitor
+    ),
+
+  /** 浏览器状态（含批量评论采集进度 ratingsBatch），BrowserConsole/竞品页轮询用 */
+  getBrowserStatus: () =>
+    apiGet<{ ratingsBatch: RatingsBatchState }>("/api/browser/status", noOfflineCompetitor),
+
+  /** 批量评论采集：异步启动（评论+商品详情一起采），任务落 collect_tasks 表；重复启动后端返回 409 */
+  startRatingsBatch: (
+    input: { tag?: string; limit?: number; maxPages?: number; concurrency?: number } = {}
+  ) =>
+    apiSend<{ started: boolean; taskId: number; message: string }>(
+      "/api/browser/collect-ratings-batch",
+      "POST",
+      input,
+      noOfflineCompetitor
+    ),
+
+  stopRatingsBatch: () =>
+    apiSend<{ ok: boolean }>(
+      "/api/browser/collect-ratings-batch/stop",
+      "POST",
+      {},
+      noOfflineCompetitor
+    ),
+
+  /** 重新采集指定任务里失败的评论商品：原任务复活续跑（failed 重置 pending），无可重试项后端返回 409 */
+  retryFailedRatings: (input: { taskId: number; maxPages?: number; concurrency?: number }) =>
+    apiSend<{ started: boolean; taskId: number; message: string }>(
+      "/api/browser/collect-ratings-retry",
+      "POST",
+      input,
+      noOfflineCompetitor
+    ),
+
+  /** 停止指定任务（任务行上的停止按钮）：非运行中后端返回 409 */
+  stopCollectTask: (taskId: number) =>
+    apiSend<{ ok: boolean; message: string }>(
+      `/api/browser/tasks/${taskId}/stop`,
+      "POST",
+      {},
+      noOfflineCompetitor
+    ),
+
+  /** 采集任务列表（最近 20 条，含历史） */
+  listCollectTasks: () => apiGet<{ tasks: CollectTask[] }>("/api/browser/tasks", noOfflineCompetitor),
+
+  /** 创建搜索采集任务：按关键字抓商品（入库+打标），采完自动续采评论，进度走任务表 */
+  startSearchTask: (input: {
+    keyword: string;
+    screens?: number;
+    autoRatings?: boolean;
+    ratingsPages?: number;
+    concurrency?: number;
+  }) =>
+    apiSend<{ started: boolean; taskId: number; message: string }>(
+      "/api/browser/collect-search-task",
+      "POST",
+      input,
+      noOfflineCompetitor
+    ),
+
+  /** 停止搜索采集任务（跑完当前屏后退出） */
+  stopSearchTask: () =>
+    apiSend<{ ok: boolean }>(
+      "/api/browser/collect-search-task/stop",
+      "POST",
+      {},
+      noOfflineCompetitor
+    ),
+
+  /** 采集任务明细：每个商品的状态/评论数/详情补全/失败原因 */
+  getCollectTask: (id: number) =>
+    apiGet<{ task: CollectTask; items: CollectTaskItem[] }>(
+      `/api/browser/tasks/${id}`,
+      noOfflineCompetitor
+    ),
+
+  /** 删除采集任务（级联删除其产出的商品、标签与落盘文件），运行中会被后端 409 拒绝 */
+  deleteCollectTask: (id: number) =>
+    apiSend<{ ok: boolean; products: number; files: number }>(
+      `/api/browser/tasks/${id}`,
+      "DELETE",
+      undefined,
+      noOfflineCompetitor
+    ),
+
+  /* ---------------- 描述改写 ----------------
+   * 平台自建能力域，浏览器端无等价实现，全部不兜底。
+   */
+  listDescTasks: () =>
+    apiGet<{ items: DescTask[] }>(`/api/descbatch/tasks`, noOfflineCompetitor),
+
+  createDescTask: (filename: string, dataBase64: string) =>
+    apiSend<DescTask>("/api/descbatch/tasks", "POST", { filename, dataBase64 }, noOfflineCompetitor),
+
+  updateDescPrompt: (id: number, prompt: string) =>
+    apiSend<DescTask>(`/api/descbatch/tasks/${id}/prompt`, "PUT", { prompt }, noOfflineCompetitor),
+
+  /** reset=true 全量重跑（覆盖已有改写结果）；否则续跑只补 pending/failed */
+  runDescTask: (id: number, reset = false) =>
+    apiSend<{ ok: boolean }>(`/api/descbatch/tasks/${id}/run`, "POST", { reset }, noOfflineCompetitor),
+
+  deleteDescTask: (id: number) =>
+    apiSend<{ ok: boolean }>(`/api/descbatch/tasks/${id}`, "DELETE", undefined, noOfflineCompetitor),
+
+  getDescSettings: () =>
+    apiGet<{ hasKey: boolean; model: string }>("/api/descbatch/settings", noOfflineCompetitor),
+
+  saveDescSettings: (apiKey: string, model: string) =>
+    apiSend<{ hasKey: boolean; model: string }>("/api/descbatch/settings", "PUT", { apiKey, model }, noOfflineCompetitor),
+
+  testDescSettings: () =>
+    apiSend<{ ok: boolean; reply?: string; error?: string }>("/api/descbatch/settings/test", "POST", {}, noOfflineCompetitor),
 };
 
 /** 仓库选项，供筛选下拉复用 */
@@ -332,3 +469,19 @@ export const WAREHOUSE_OPTIONS: { value: WarehouseCode; label: string }[] = [
   { value: "us_west", label: "美西海外仓" },
   { value: "de_central", label: "德国海外仓" },
 ];
+
+/* ---------------- 描述改写类型 ---------------- */
+
+export interface DescTask {
+  id: number;
+  filename: string;
+  status: "pending" | "running" | "done" | "failed";
+  prompt: string;
+  total: number;
+  done: number;
+  failed: number;
+  error: string | null;
+  created_at: string;
+  updated_at: string;
+  running?: boolean;
+}

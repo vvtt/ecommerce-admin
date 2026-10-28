@@ -418,6 +418,21 @@ export interface CollectResult {
   action: "created" | "updated";
 }
 
+/**
+ * 链接自动采集结果（POST /api/sourcing/collect-from-url）。
+ * 后端在比特指纹窗口里打开 1688 详情页并自动点妙手插件的「采集此商品」
+ * （2026-10-28 最终形态：按钮点击，与手动操作一致；同日试过直连
+ * push_collect_box 接口被用户否掉）。
+ * 请求挂起 40~90s；妙手采集条 45s 没出现会直接报错。
+ */
+export interface AutoCollectResult {
+  ok: boolean;
+  offerId: string;
+  offerUrl: string;
+  /** feedback 是妙手页面上的原文提示（已提交采集任务…/未登录提示等） */
+  mishou: { clicked: boolean; feedback: string | null };
+}
+
 /* ------------------------------------------------------------------ *
  * 竞品分析（Shopee 竞品商品库）
  * ------------------------------------------------------------------ */
@@ -430,8 +445,66 @@ export interface CollectResult {
  */
 export interface CompetitorQuery {
   q?: string;
+  /** 搜索批量采集的标签（= 搜索关键字），精确匹配 */
+  tag?: string;
   page?: number;
   pageSize?: number;
+}
+
+/** 批量评论采集进度（服务端 manager.ts 同名状态机的前端只读快照） */
+export interface RatingsBatchState {
+  running: boolean;
+  /** 对应 collect_tasks.id，明细可查 /api/browser/tasks/:id */
+  taskId: number | null;
+  tag: string | null;
+  total: number;
+  done: number;
+  success: number;
+  failed: number;
+  /** 本任务累计新增评论文数 */
+  reviews: number;
+  currentItem: string | null;
+  /** 当前步骤（打开页面 / 滚动加载 / 翻页采评论第 n 页…） */
+  currentStep: string | null;
+  startedAt: string | null;
+  finishedAt: string | null;
+  waitingCaptcha: boolean;
+  errors: string[];
+  abort: boolean;
+}
+
+/** 批量采集任务（collect_tasks 表行，前端只读快照） */
+export interface CollectTask {
+  id: number;
+  /** ratings = 商品详情 + 评论一起采 */
+  kind: string;
+  tag: string | null;
+  maxPages: number | null;
+  /** running / done / stopped / failed */
+  status: string;
+  total: number;
+  done: number;
+  success: number;
+  failed: number;
+  reviews: number;
+  currentItem: string | null;
+  currentStep: string | null;
+  error: string | null;
+  createdAt: string | null;
+  updatedAt: string | null;
+  finishedAt: string | null;
+}
+
+/** 任务明细行：任务里每个商品的处理结果 */
+export interface CollectTaskItem {
+  shopId: string;
+  itemId: string;
+  name: string | null;
+  /** pending / running / done / failed */
+  status: string;
+  reviews: number;
+  pdpSaved: boolean;
+  error: string | null;
 }
 
 /** 竞品商品列表项。按需求只暴露轻字段，评论与 SKU 大字段留在详情里 */

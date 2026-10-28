@@ -15,15 +15,22 @@ import fs from "node:fs";
 import path from "node:path";
 import {
   CRED_DIR,
+  COMPETITOR_STORE_DIR,
   PRODUCT_DIR,
   RAW_DIR,
   REVIEW_DIR,
 } from "./client";
-import { mergeReviews, upsertProduct } from "./repository";
+import {
+  addProductTag,
+  hasProduct,
+  setReviewFile,
+  upsertProduct,
+  upsertSearchProduct,
+} from "./repository";
 
 /** 插件上报载荷。type 决定走哪个 handler，其余字段按 type 各取所需 */
 export interface IngestBody {
-  type: "pdp" | "ratings" | "ldjson" | "cookie" | "page_html";
+  type: "pdp" | "ratings" | "ldjson" | "cookie" | "page_html" | "search";
   shopId?: string | number;
   itemId?: string | number;
   url?: string;
@@ -31,6 +38,8 @@ export interface IngestBody {
   cookies?: string;
   names?: string[];
   html?: string;
+  /** type=search 专用：搜索关键字，同时作为打标标签 */
+  keyword?: string;
 }
 
 /**
@@ -168,8 +177,12 @@ export function handlePdp(body: IngestBody): { ok: boolean; saved?: string; note
   const node = ((data.data as Record<string, unknown>) ?? data) as Record<string, unknown>;
   const it = (node.item as Record<string, unknown> | undefined) ?? {};
 
-  if (!Object.keys(it).length && !body.shopId) {
-    return { ok: false, note: "no item payload" };
+  // 没有 item 数据一律拒绝写库/落盘 —— 风控错误信封（90309999 等）也带
+  // shopId/itemId，放行会把已有完整数据的商品记录覆盖成空壳（2026-10-24
+  // 实测 525 个商品 name 全军覆没的根因）。真实数据以后总能重新拉，覆盖
+  // 掉的好数据却找不回来。
+  if (!Object.keys(it).length) {
+    return { ok: false, note: "no item payload（错误信封，拒绝覆盖已有数据）" };
   }
 
   // 原始响应先完整落盘 raw/ —— 以后要补字段直接从这里分析，不用重抓
@@ -279,7 +292,10 @@ export function handlePdp(body: IngestBody): { ok: boolean; saved?: string; note
   return { ok: true, saved: productPath(shopId, itemId) };
 }
 
-/** 评论批次截获：_key 去重 → JSONL 追加 → 合并进 DB 的 reviews_json */
+/**
+ * 评论批次截获：_key 去重 → JSONL 文件追加（评论的唯一存储位置）→
+ * DB 只更新 review_file 路径与条数索引。
+ */
 export function handleRatings(body: IngestBody): { ok: boolean; batch?: number; new?: number; total?: number } {
   const shop = toStr(body.shopId);
   const item = toStr(body.itemId);
@@ -337,11 +353,38 @@ export function handleRatings(body: IngestBody): { ok: boolean; batch?: number; 
     `[competitor/ratings] shop ${shop} item ${item}  本批 ${ratings.length} 条，新增 ${newRows.length} 条，累计 ${keys.size} 条`
   );
 
-  const merged = mergeReviews(shop, item, newRows);
-  if (merged.added) {
-    console.log(`[competitor/db] 评论合并：+${merged.added} 条，DB 累计 ${merged.total} 条`);
-  }
+  // 评论改文件存储：内容只进 JSONL，DB 存相对路径 + 条数（文件是源头）
+  setReviewFile(
+    shop,
+    item,
+    path.relative(COMPETITOR_STORE_DIR, rPath).replace(/\\/g, "/"),
+    keys.size,
+  );
   return { ok: true, batch: ratings.length, new: newRows.length, total: keys.size };
+}
+
+/**
+ * 直拉模式专用：API 明确返回 count=0 的商品写空评论文件并标记 review_file。
+ * handleRatings 对空数组直接返回不落盘，零评论商品会永远挂在「待采评论」队列
+ * 里被反复重扫（listPendingRatings 按 review_file IS NULL 快照）——显式补标记
+ * 让它们永久出队。
+ */
+export function markNoReviews(shop: string, item: string): void {
+  const rPath = reviewPath(shop, item);
+  if (!fs.existsSync(rPath)) {
+    fs.writeFileSync(rPath, "", "utf-8");
+  }
+  setReviewFile(
+    shop,
+    item,
+    path.relative(COMPETITOR_STORE_DIR, rPath).replace(/\\/g, "/"),
+    0,
+  );
+}
+
+/** 详情文件是否已落盘（API 直拉模式据此跳过已采详情，省一次 get_pc 请求） */
+export function hasPdpFile(shop: string, item: string): boolean {
+  return fs.existsSync(productPath(shop, item));
 }
 
 /** JSON-LD 兜底：只补缺，不覆盖已从 pdp 抓到的正主数据（与 Python 版一致，只改文件不进库） */
@@ -453,6 +496,142 @@ export function handlePageHtml(body: IngestBody): { ok: boolean; kb: number; cat
   return { ok: true, kb: Math.floor(html.length / 1024), categories: cats.length };
 }
 
+/* ------------------------------------------------------------------ *
+ * 搜索批量采集
+ * ------------------------------------------------------------------ */
+
+/**
+ * 搜索批次商品落盘记录的形状。比 PdpRecord 浅得多 —— 搜索结果卡只有
+ * 列表级字段（无描述/规格/SKU），深度信息留给后续 PDP 采集补全。
+ * sold 等未建列的字段随文件保留（文件是源头）。
+ */
+export interface SearchItemRecord {
+  type: "search";
+  shop_id: string;
+  item_id: string;
+  name: string;
+  price?: number;
+  currency: string;
+  rating_star?: number;
+  image?: string;
+  url: string;
+  is_cross_border?: number;
+  item_status: string;
+  captured_at: string;
+  source_url: string;
+  /** 未建 DB 列的字段堆在 extra 里，全量留在文件侧 */
+  extra: Record<string, unknown>;
+}
+
+function searchSafeName(keyword: string): string {
+  return keyword.replace(/[\\/:*?"<>|\s]+/g, "_").slice(0, 40) || "nokeyword";
+}
+
+/**
+ * 搜索结果批次：raw 落盘 → 逐商品「去重 upsert + 打关键字标签」。
+ *
+ * 去重语义（用户决策）：库中已存在的商品不重复抓取 —— 不覆盖、不更新，
+ * 只累计 skip 计数；标签照打（同一商品被新关键字命中时补一条标签关系）。
+ * 批次频率由页面滚动节奏决定（页面自己发的请求），后端不做限速也不丢批。
+ */
+export function handleSearch(body: IngestBody): {
+  ok: boolean;
+  total?: number;
+  added?: number;
+  skipped?: number;
+  tagged?: number;
+  note?: string;
+} {
+  const keyword = toStr(body.keyword).trim();
+  const data = (body.data ?? {}) as Record<string, unknown>;
+  const node = ((data.data as Record<string, unknown>) ?? data) as Record<string, unknown>;
+  const rawItems = (Array.isArray(node.items) ? node.items : []) as Record<string, unknown>[];
+
+  if (!rawItems.length) {
+    return { ok: false, note: "search 批次里没有商品（data.items 为空）" };
+  }
+
+  // 原始批次先完整落盘 —— 以后要补字段直接从这里分析，不用重抓
+  const ts = nowStamp().replace(/[: -]/g, "");
+  const rawPath = path.join(RAW_DIR, `search_${searchSafeName(keyword)}_${ts}.json`);
+  try {
+    fs.writeFileSync(
+      rawPath,
+      JSON.stringify({ keyword, url: toStr(body.url), captured_at: nowStamp(), count: rawItems.length, response: data }, null, 2),
+      "utf-8",
+    );
+  } catch (error) {
+    console.error(`[competitor/search] 原始批次落盘失败:`, error);
+  }
+
+  let added = 0;
+  let skipped = 0;
+  let tagged = 0;
+
+  for (const entry of rawItems) {
+    const it = ((entry.item_basic as Record<string, unknown> | undefined) ??
+      (entry.item as Record<string, unknown> | undefined) ??
+      entry) as Record<string, unknown>;
+    const shopId = toStr(it.shopid);
+    const itemId = toStr(it.itemid);
+    if (!shopId || !itemId) continue;
+
+    if (hasProduct(shopId, itemId)) {
+      skipped += 1;
+    } else {
+      const record: SearchItemRecord = {
+        type: "search",
+        shop_id: shopId,
+        item_id: itemId,
+        name: toStr(it.name),
+        price: toPrice(it.price),
+        currency: toStr(it.currency) || "TWD",
+        rating_star: (() => {
+          const r = it.item_rating as Record<string, unknown> | undefined;
+          return typeof r?.rating_star === "number" ? r.rating_star : undefined;
+        })(),
+        image: toStr(it.image) || undefined,
+        url: `https://xiapi.xiapibuy.com/product/${shopId}/${itemId}`,
+        is_cross_border: typeof it.is_cb === "number" ? it.is_cb : undefined,
+        item_status: toStr(it.item_status) || "normal",
+        captured_at: nowStamp(),
+        source_url: toStr(body.url),
+        extra: {
+          sold: it.sold,
+          historical_sold: it.historical_sold,
+          stock: it.stock,
+          price_before_discount: it.price_before_discount,
+          shop_location: it.shop_location,
+          ctime: it.ctime,
+          is_official_shop: it.is_official_shop,
+        },
+      };
+      // 文件是源头：新商品先落盘再写库，写库失败不影响文件
+      try {
+        fs.writeFileSync(productPath(shopId, itemId), JSON.stringify(record, null, 2), "utf-8");
+      } catch (error) {
+        console.error(`[competitor/search] 商品落盘失败 shop ${shopId} item ${itemId}:`, error);
+        continue;
+      }
+      try {
+        if (upsertSearchProduct(record)) added += 1;
+        else skipped += 1;
+      } catch (error) {
+        console.error("[competitor/db] 搜索商品写入失败:", error);
+      }
+    }
+
+    // 已存在的商品也补标签关系 —— 标签记录的是「该关键字命中过该商品」
+    if (keyword && addProductTag(shopId, itemId, keyword)) tagged += 1;
+  }
+
+  console.log(
+    `[competitor/search] 关键字「${keyword || "(未解析到)"}」本批 ${rawItems.length} 件：新增 ${added}，` +
+      `已存在跳过 ${skipped}，新标签 ${tagged} → ${path.basename(rawPath)}`
+  );
+  return { ok: true, total: rawItems.length, added, skipped, tagged };
+}
+
 /** 统一分发。返回 null 表示未知 type（由路由层报 400） */
 export function dispatchIngest(body: IngestBody): Record<string, unknown> {
   switch (body.type) {
@@ -466,6 +645,8 @@ export function dispatchIngest(body: IngestBody): Record<string, unknown> {
       return handleCookie(body);
     case "page_html":
       return handlePageHtml(body);
+    case "search":
+      return handleSearch(body);
     default:
       return { ok: false, note: `unknown type: ${String(body.type)}` };
   }

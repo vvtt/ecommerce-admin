@@ -12,7 +12,7 @@
     "lint": "tsc --noEmit",
     "lint:extension": "tsc -p extension --noEmit",
     "test:sourcing": "tsx server/sourcing/smoke.ts",
-    "test:extension": "node extension/1688-sourcing/test/extractor.smoke.mjs && node extension/1688-sourcing/test/bridge.smoke.mjs"
+    "test:extension": "node extension/1688-sourcing/test/extractor.smoke.mjs && node extension/1688-sourcing/test/bridge.smoke.mjs && node extension/cross-border-toolkit/test/smoke.mjs"
   },
   "dependencies": {
     "@radix-ui/react-avatar": "^1.2.6",
@@ -30,6 +30,7 @@
     "@vitejs/plugin-react": "^6.1.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "exceljs": "^4.4.0",
     "express": "^4.21.2",
     "lucide-react": "^0.546.0",
     "playwright-core": "^1.64.0",

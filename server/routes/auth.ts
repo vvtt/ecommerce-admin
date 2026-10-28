@@ -47,7 +47,7 @@ authRouter.get("/me", (req: Request, res: Response) => {
  *  - /auth/login：登录本身
  *  - /auth/me：自己校验自己（校验逻辑在上面）
  *  - /sourcing/collect、/sourcing/lookup、/competitor/ingest：浏览器插件的上报面，
- *    插件请求不带本会话 token，它们各自有自己的准入控制（X-Collect-Token / 免鉴权决策）
+ *    插件请求不带本会话 token；sourcing 原有的 X-Collect-Token 已移除（仅本机使用）
  */
 const PUBLIC_PATHS = [
   "/health",
@@ -55,6 +55,7 @@ const PUBLIC_PATHS = [
   "/auth/me",
   "/sourcing/collect",
   "/sourcing/lookup",
+  "/sourcing/stats", // 只读统计；扩展设置页的「测试连接」用它单独验证地址通不通
   "/competitor/ingest",
 ];
 

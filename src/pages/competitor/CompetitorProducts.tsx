@@ -5,9 +5,9 @@
  * 粘贴长串关键词，输入过程中不断打接口纯属浪费。不填条件点查询 =
  * 全量分页（q 为空时后端不加 WHERE）。
  */
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { Download, ExternalLink, Search } from "lucide-react";
+import { Download, ExternalLink, ListChecks, Search, Square, Trash2 } from "lucide-react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { PageHeader } from "@/src/components/shared/PageHeader";
 import { DataTable } from "@/src/components/shared/DataTable";
@@ -18,7 +18,7 @@ import { useApi } from "@/src/hooks/useApi";
 import { api } from "@/src/lib/api";
 import { downloadCompetitorTxt } from "@/src/lib/competitor-export";
 import { formatInt } from "@/src/lib/format";
-import type { CompetitorProductSummary } from "@/src/types";
+import type { CompetitorProductSummary, RatingsBatchState } from "@/src/types";
 
 /** 价格展示：单一价直接显示，min/max 存在且不同时显示区间 */
 function PriceCell({ item }: { item: CompetitorProductSummary }) {
@@ -49,8 +49,9 @@ export default function CompetitorProducts() {
   const [appliedKeyword, setAppliedKeyword] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
-  /** 正在导出的行（shop_item），避免连点重复下载 */
+  /** 正在导出/删除的行（shop_item），避免连点重复操作 */
   const [exporting, setExporting] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
 
   const query = useMemo(
     () => ({
@@ -86,6 +87,75 @@ export default function CompetitorProducts() {
       setExporting(null);
     }
   };
+
+  /** 删除单条：DB 只删索引行，落盘原始文件保留（误删可从源头恢复） */
+  const handleDelete = async (item: CompetitorProductSummary) => {
+    const label = item.name || item.itemId;
+    if (!window.confirm(`确定删除「${label}」？落盘的原始采集文件会保留，误删可恢复。`)) return;
+    const key = `${item.shopId}_${item.itemId}`;
+    setDeleting(key);
+    try {
+      await api.deleteCompetitorProduct(item.shopId, item.itemId);
+      toast.success(`已删除「${label}」`);
+      reload();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "删除失败");
+    } finally {
+      setDeleting(null);
+    }
+  };
+
+  /* ---------------- 批量评论采集 ----------------
+   * 进度挂浏览器状态接口里，轮询节奏与 BrowserConsole 一致（3 秒）。
+   * 跑批结束时刷新列表，让新采到评论的商品行立即反映 reviewCount。 */
+  const [batch, setBatch] = useState<RatingsBatchState | null>(null);
+  const prevRunningRef = useRef(false);
+
+  const refreshBatch = useCallback(async () => {
+    try {
+      const { data } = await api.getBrowserStatus();
+      setBatch(data.ratingsBatch);
+    } catch {
+      // 轮询失败静默：进度条不是关键路径，下一轮会再试
+    }
+  }, []);
+
+  useEffect(() => {
+    void refreshBatch();
+    const timer = setInterval(() => void refreshBatch(), 3000);
+    return () => clearInterval(timer);
+  }, [refreshBatch]);
+
+  useEffect(() => {
+    if (prevRunningRef.current && batch && !batch.running) {
+      reload();
+      if (batch.failed > 0) {
+        toast.info(`批量评论结束：成功 ${batch.success}，失败 ${batch.failed}`);
+      } else if (batch.done > 0) {
+        toast.success(`批量评论结束：成功采集 ${batch.success} 个商品`);
+      }
+    }
+    prevRunningRef.current = batch?.running ?? false;
+  }, [batch, reload, toast]);
+
+  const handleStartBatch = useCallback(async () => {
+    try {
+      const { data } = await api.startRatingsBatch({ limit: 50 });
+      toast.success(data.message);
+      void refreshBatch();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "启动失败");
+    }
+  }, [toast, refreshBatch]);
+
+  const handleStopBatch = useCallback(async () => {
+    try {
+      await api.stopRatingsBatch();
+      toast.info("已请求停止，当前商品采完即退出");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "停止失败");
+    }
+  }, [toast]);
 
   const columns = useMemo<ColumnDef<CompetitorProductSummary, any>[]>(
     () => [
@@ -148,14 +218,14 @@ export default function CompetitorProducts() {
       },
       {
         id: "actions",
-        size: 80,
+        size: 96,
         enableSorting: false,
         header: () => <span className="sr-only">操作</span>,
         cell: ({ row }) => {
           const o = row.original;
           const key = `${o.shopId}_${o.itemId}`;
           return (
-            <div className="flex items-center justify-end">
+            <div className="flex items-center justify-end gap-0.5">
               <Button
                 variant="ghost"
                 size="icon"
@@ -166,13 +236,23 @@ export default function CompetitorProducts() {
               >
                 <Download className={exporting === key ? "h-3.5 w-3.5 animate-pulse" : "h-3.5 w-3.5"} />
               </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 text-slate-400 hover:text-rose-600"
+                title="删除该竞品"
+                disabled={deleting === key}
+                onClick={() => handleDelete(o)}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
             </div>
           );
         },
       },
     ],
-    // handleExport 每次渲染重建，与 ProductList/SourcingList 的写法一致不进依赖
-    [exporting]
+    // handleExport/handleDelete 每次渲染重建，与 ProductList/SourcingList 的写法一致不进依赖
+    [exporting, deleting]
   );
 
   return (
@@ -199,6 +279,44 @@ export default function CompetitorProducts() {
         emptyDescription="在 Shopee 商品详情页用采集扩展抓一条，数据就会出现在这里。"
         toolbar={
           <FilterBar right={`共 ${formatInt(data?.total ?? 0)} 条竞品`}>
+            {batch?.running ? (
+              <div className="flex items-center gap-2">
+                {batch.waitingCaptcha && (
+                  <span className="rounded bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
+                    等待过验证码（去 Edge 窗口滑一下）
+                  </span>
+                )}
+                <span className="whitespace-nowrap text-xs text-slate-600">
+                  采评论中 {batch.done}/{batch.total} · 成 {batch.success} 败 {batch.failed} · 评{batch.reviews}条
+                </span>
+                <span
+                  className="hidden max-w-[260px] truncate text-xs text-slate-400 lg:inline"
+                  title={`${batch.currentStep ?? ""} ${batch.currentItem ?? ""}`}
+                >
+                  {[batch.currentStep, batch.currentItem].filter(Boolean).join(" · ")}
+                </span>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-9 gap-1.5"
+                  onClick={handleStopBatch}
+                >
+                  <Square className="h-3 w-3" />
+                  停止
+                </Button>
+              </div>
+            ) : (
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-9 gap-1.5"
+                title="逐个打开还没采过评论的商品页，自动滚动+翻页采集评论（每商品间隔 5~10 秒）"
+                onClick={handleStartBatch}
+              >
+                <ListChecks className="h-3.5 w-3.5" />
+                批量采评论
+              </Button>
+            )}
             <SearchInput
               value={keyword}
               onChange={setKeyword}

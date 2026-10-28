@@ -1,0 +1,60 @@
+{
+  "manifest_version": 3,
+  "name": "跨境电商工具箱",
+  "version": "1.0.0",
+  "description": "三合一：1688 货源采集 + Shopee 商品/评论采集 + 全网图片搜 1688 同款",
+  "minimum_chrome_version": "111",
+
+  "permissions": ["contextMenus", "storage", "cookies"],
+  "host_permissions": [
+    "*://*.1688.com/*",
+    "https://*.xiapibuy.com/*",
+    "https://shopee.tw/*",
+    "http://localhost/*",
+    "http://127.0.0.1/*"
+  ],
+
+  "background": { "service_worker": "background.js" },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "跨境电商工具箱"
+  },
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
+  },
+
+  "content_scripts": [
+    {
+      "matches": ["*://*.1688.com/offer/*"],
+      "js": ["main-world.js"],
+      "run_at": "document_start",
+      "world": "MAIN",
+      "all_frames": false
+    },
+    {
+      "matches": ["*://*.1688.com/offer/*"],
+      "js": ["isolated.js"],
+      "run_at": "document_idle",
+      "all_frames": false
+    },
+    {
+      "matches": ["https://*.xiapibuy.com/*", "https://shopee.tw/*"],
+      "js": ["inject.js"],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": ["https://*.xiapibuy.com/*", "https://shopee.tw/*"],
+      "js": ["content.js"],
+      "run_at": "document_start"
+    },
+    {
+      "matches": ["http://*/*", "https://*/*"],
+      "js": ["lib.js", "modules/image-search.js"],
+      "css": ["modules/image-search.css"],
+      "run_at": "document_idle",
+      "all_frames": true
+    }
+  ]
+}

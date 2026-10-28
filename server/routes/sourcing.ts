@@ -8,7 +8,7 @@
 import { Router } from "express";
 import type { CollectedOffer, SourcingQuery } from "../../src/types";
 import { arr, handle, int, str } from "../lib/params";
-import { requireCollectToken } from "../sourcing/auth";
+import { collectOfferFromUrl, resolveOfferId } from "../sourcing/autocollect";
 import { awaitInFlight, ingestOfferImages, removeOfferFiles, scheduleIngest } from "../sourcing/images";
 import {
   deleteSourcingOffer,
@@ -21,17 +21,11 @@ import {
 } from "../sourcing/repository";
 
 /**
- * 鉴权范围：**只有 collect 需要 X-Collect-Token**。
+ * 鉴权：collect 不再要求 X-Collect-Token（2026-10-24 用户决策）。
  *
- * 理由：collect 是唯一暴露给浏览器扩展的外部写入面，token 挡的是
- * 「任何能访问到这个服务的人往库里灌数据」。
- *
- * 其余写入（reingest / delete）是管理端操作，不设 token，因为这在本项目里
- * 是**一致的**选择 —— 现有 /api/products、/api/categories 的删除同样裸奔，
- * 整个后台目前没有登录态。而且把 token 塞进前端 JS 并不构成安全边界：
- * 能加载页面的人就能从源码里读到它，那只是安全表演。
- *
- * 等将来给后台加了真正的登录鉴权，这些路由一并纳入即可。
+ * 本服务只在 localhost 单人使用，与其他写入接口（/api/products 的删除等）
+ * 保持一致的开放策略；载荷敏感字段校验（findSensitiveKey）仍然保留。
+ * 等将来服务暴露公网或加了登录鉴权，再给写入路由统一挂中间件。
  */
 export const sourcingRouter = Router();
 
@@ -77,7 +71,6 @@ function findSensitiveKey(value: unknown, depth = 0): string | undefined {
  */
 sourcingRouter.post(
   "/collect",
-  requireCollectToken,
   handle((req, res) => {
     const body = req.body as CollectedOffer | undefined;
     if (!body || typeof body !== "object") {
@@ -103,6 +96,43 @@ sourcingRouter.post(
     );
 
     res.status(result.action === "created" ? 201 : 200).json({ offer, action: result.action });
+  }),
+);
+
+/**
+ * APP 链接自动采集 → 妙手 ERP（2026-10-28）：丢一个 1688 分享链接进来，
+ * 服务端解析 offerId → 比特指纹窗口开新标签打开 PC 详情页 →
+ * 自动点妙手 ERP 插件采集条的「采集此商品」按钮，商品进妙手采集箱。
+ * 用户拍板（同日）：不点工具箱「采集到货源库」、不直连接口，走按钮点击。
+ * 耗时约 40~90 秒（等页面渲染+妙手远程包挂载），HTTP 请求挂起至跑完才返回。
+ *
+ * 设计与坑见 server/sourcing/autocollect.ts 顶部注释。
+ */
+sourcingRouter.post(
+  "/collect-from-url",
+  handle((req, res) => {
+    const url = typeof req.body?.url === "string" ? req.body.url.trim() : "";
+    if (!url) {
+      res.status(400).json({ error: "缺少 url 字段（支持 qr.1688.com 短链 / m.1688.com / detail.1688.com 链接）" });
+      return;
+    }
+    // 先快速解析 offerId，链接不合法当场报错，不浪费一次浏览器拉起
+    resolveOfferId(url)
+      .then(({ offerId }) => {
+        console.log(`[sourcing] 自动采集开始：offerId=${offerId}`);
+        return collectOfferFromUrl(url);
+      })
+      .then((result) => {
+        console.log(
+          `[sourcing] 自动采集完成：offerId=${result.offerId} ` +
+            `妙手=${result.mishou.clicked ? result.mishou.feedback ?? "已点击" : "未点击"}`,
+        );
+        res.json({ ok: true, ...result });
+      })
+      .catch((error) => {
+        console.error("[sourcing] 自动采集失败：", error instanceof Error ? error.message : error);
+        res.status(502).json({ error: error instanceof Error ? error.message : "自动采集失败" });
+      });
   }),
 );
 

@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import type { ColumnDef, SortingState } from "@tanstack/react-table";
-import { Eye, ImageDown, Trash2 } from "lucide-react";
+import { Eye, ExternalLink, ImageDown, Link2, Loader2, Trash2 } from "lucide-react";
 import { PageHeader } from "@/src/components/shared/PageHeader";
 import {
   DataTable,
@@ -14,6 +14,15 @@ import { SourceBadge } from "@/src/components/shared/SourceBadge";
 import { ConfirmDialog } from "@/src/components/shared/ConfirmDialog";
 import { useToast } from "@/src/components/shared/Toast";
 import { Button } from "@/src/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/src/components/ui/dialog";
+import { Input } from "@/src/components/ui/input";
 import { Checkbox } from "@/src/components/ui/checkbox";
 import { useApi } from "@/src/hooks/useApi";
 import { useDebouncedValue } from "@/src/hooks/useDebouncedValue";
@@ -25,7 +34,7 @@ import {
 } from "@/src/lib/labels";
 import { formatCnyRange, formatInt, formatRelative } from "@/src/lib/format";
 import { cn } from "@/src/lib/utils";
-import type { ImageStatus, SourcingOfferSummary, SourcingQuery } from "@/src/types";
+import type { AutoCollectResult, ImageStatus, SourcingOfferSummary, SourcingQuery } from "@/src/types";
 
 export default function SourcingList() {
   const navigate = useNavigate();
@@ -40,8 +49,14 @@ export default function SourcingList() {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [pendingDelete, setPendingDelete] = useState<SourcingOfferSummary | null>(null);
   const [batchDelete, setBatchDelete] = useState(false);
-  /** 正在重跑图片转存的 offer，避免连点重复提交 */
-  const [reingesting, setReingesting] = useState<string | null>(null);
+
+  /* ---- 链接自动采集弹窗（2026-10-28 集成） ---- */
+  const [collectOpen, setCollectOpen] = useState(false);
+  const [collectUrl, setCollectUrl] = useState("");
+  const [collectRunning, setCollectRunning] = useState(false);
+  const [collectResult, setCollectResult] = useState<
+    { ok: boolean; message: string } | null
+  >(null);
 
   const debouncedKeyword = useDebouncedValue(keyword, 300);
 
@@ -84,18 +99,41 @@ export default function SourcingList() {
     reload();
   };
 
-  const handleReingest = async (offer: SourcingOfferSummary) => {
-    setReingesting(offer.id);
-    try {
-      const { data: res } = await api.reingestSourcingImages(offer.id);
-      // 接口是异步返回的，此刻图片还在后台下载，说"已在转存"而不是"已完成"
-      toast.success(`已重新提交 ${res.resetImages} 张图片，正在后台转存`);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "重新转存失败");
-    } finally {
-      setReingesting(null);
-      reload();
+  /**
+   * 链接自动采集。用户常把 APP 分享的整段文案直接粘进来
+   * （「【名称】复制￥xxx￥ https://qr.1688.com/s/xxx」），所以先从文本里
+   * 抽 1688 链接，抽不到再按原文提交让后端报具体错误。
+   * 请求挂起 40~90s（等比特窗口自动点按钮），期间不允许关弹窗。
+   */
+  const handleCollectFromUrl = async () => {
+    const extracted = collectUrl.match(/https?:\/\/[^\s"'，,）)【】]*1688[^\s"'，,）)【]*/i);
+    const url = (extracted ? extracted[0] : collectUrl).trim();
+    if (!url) {
+      setCollectResult({ ok: false, message: "请粘贴 1688 链接" });
+      return;
     }
+    setCollectRunning(true);
+    setCollectResult(null);
+    try {
+      const { data } = await api.collectSourcingFromUrl(url);
+      const fb = data.mishou.feedback ?? "已点击采集按钮（未捕获到结果提示）";
+      setCollectResult({ ok: true, message: `已提交妙手采集：${fb}。商品请到妙手 ERP 采集箱查看。` });
+      toast.success("链接采集完成");
+    } catch (err) {
+      setCollectResult({
+        ok: false,
+        message: err instanceof Error ? err.message : "自动采集失败",
+      });
+    } finally {
+      setCollectRunning(false);
+    }
+  };
+
+  const openCollectDialog = () => {
+    setCollectUrl("");
+    setCollectResult(null);
+    setCollectRunning(false);
+    setCollectOpen(true);
   };
 
   const columns = useMemo<ColumnDef<SourcingOfferSummary, any>[]>(
@@ -176,20 +214,22 @@ export default function SourcingList() {
         cell: ({ row }) => <SourcePlatformBadge platform={row.original.platform} />,
       },
       {
-        id: "supplier",
+        id: "offerUrl",
         enableSorting: false,
-        header: "供应商",
+        header: "1688 链接",
         cell: ({ row }) => {
           const o = row.original;
+          const url = `https://detail.1688.com/offer/${o.offerId}.html`;
           return (
-            <div className="min-w-0">
-              <p className="truncate text-xs text-slate-700 max-w-[180px]">
-                {o.supplierName || "—"}
-              </p>
-              {o.supplierLocation && (
-                <p className="text-[11px] text-slate-400">{o.supplierLocation}</p>
-              )}
-            </div>
+            <Link
+              to={`/competitor/browser?url=${encodeURIComponent(url)}`}
+              title={`在托管浏览器打开：${url}`}
+              className="inline-flex items-center gap-1 whitespace-nowrap text-xs text-blue-600 hover:text-blue-700 hover:underline"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <ExternalLink className="h-3.5 w-3.5" />
+              打开货源
+            </Link>
           );
         },
       },
@@ -275,7 +315,7 @@ export default function SourcingList() {
       },
       {
         id: "actions",
-        size: 130,
+        size: 100,
         enableSorting: false,
         header: () => <span className="sr-only">操作</span>,
         cell: ({ row }) => {
@@ -294,18 +334,6 @@ export default function SourcingList() {
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-7 w-7"
-                title="重新转存图片"
-                disabled={reingesting === o.id}
-                onClick={() => handleReingest(o)}
-              >
-                <ImageDown
-                  className={cn("h-3.5 w-3.5", reingesting === o.id && "animate-pulse")}
-                />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
                 className="h-7 w-7 text-rose-600 hover:bg-rose-50"
                 title="删除"
                 onClick={() => setPendingDelete(o)}
@@ -317,10 +345,9 @@ export default function SourcingList() {
         },
       },
     ],
-    // 只依赖真正会变的东西：navigate 稳定，reingesting 变了要重画按钮的禁用态。
-    // handleReingest 不进依赖 —— 它每次渲染都会重建，加进来会让 columns 每帧重算，
-    // 与 ProductList 的写法一致。
-    [navigate, reingesting]
+    // 只依赖真正会变的东西：navigate 稳定。handleDelete 不进依赖 —— 它每次渲染
+    // 都会重建，加进来会让 columns 每帧重算，与 ProductList 的写法一致。
+    [navigate]
   );
 
   return (
@@ -329,6 +356,12 @@ export default function SourcingList() {
         title="货源库"
         description="从 1688 商品页采集的货源。图片已转存到本地，原站图失效也不影响查看。"
         meta={<SourceBadge source={source} />}
+        actions={
+          <Button variant="outline" onClick={openCollectDialog}>
+            <Link2 className="h-4 w-4 mr-1.5" />
+            链接采集
+          </Button>
+        }
       />
 
       <DataTable
@@ -419,6 +452,66 @@ export default function SourcingList() {
         destructive
         onConfirm={handleBatchDelete}
       />
+
+      {/* 链接自动采集：比特窗口自动点妙手按钮，请求挂起 40~90s */}
+      <Dialog open={collectOpen} onOpenChange={(open) => !collectRunning && setCollectOpen(open)}>
+        <DialogContent className="sm:max-w-lg" onPointerDownOutside={(e) => collectRunning && e.preventDefault()}>
+          <DialogHeader>
+            <DialogTitle>1688 链接采集到妙手</DialogTitle>
+            <DialogDescription>
+              粘贴 1688 链接（APP 分享短链 / m 站 / PC 详情页均可），系统会通过比特浏览器自动打开商品页并点击妙手插件的「采集此商品」，商品将进入妙手 ERP 采集箱。
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            <Input
+              value={collectUrl}
+              onChange={(e) => setCollectUrl(e.target.value)}
+              placeholder="https://qr.1688.com/s/xxxx 或整段分享文案"
+              disabled={collectRunning}
+              autoFocus
+            />
+            {collectRunning && (
+              <div className="flex items-center gap-2 rounded-md bg-blue-50 px-3 py-2.5 text-xs text-blue-700">
+                <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" />
+                正在自动采集（约 1 分钟），期间请勿关闭比特浏览器窗口…
+              </div>
+            )}
+            {collectResult && (
+              <div
+                className={cn(
+                  "rounded-md px-3 py-2.5 text-xs leading-relaxed",
+                  collectResult.ok
+                    ? "bg-emerald-50 text-emerald-700"
+                    : "bg-rose-50 text-rose-700",
+                )}
+              >
+                {collectResult.message}
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setCollectOpen(false)}
+              disabled={collectRunning}
+            >
+              关闭
+            </Button>
+            <Button onClick={handleCollectFromUrl} disabled={collectRunning || !collectUrl.trim()}>
+              {collectRunning ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+                  采集中…
+                </>
+              ) : (
+                "开始采集"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

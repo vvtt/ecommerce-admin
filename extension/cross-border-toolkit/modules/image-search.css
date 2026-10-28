@@ -1,0 +1,53 @@
+/* 全网图搜：图片悬停角标 + 淘宝商品页悬浮按钮（两个类都挂 documentElement，用 all:initial 隔离站点样式） */
+
+/* 悬停角标 */
+.tb1688-img-badge {
+  position: fixed;
+  z-index: 2147483646;
+  display: none;
+  padding: 3px 7px;
+  border-radius: 4px 4px 4px 0;
+  background: rgba(255, 79, 0, 0.92);
+  color: #fff;
+  font: 700 11px/1.4 "Microsoft YaHei", sans-serif;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+  user-select: none;
+}
+.tb1688-img-badge:hover { background: #ff4f00; }
+
+/* 淘宝/天猫商品页右侧悬浮按钮 */
+.tb1688-fab {
+  position: fixed;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 2147483646;
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 8px;
+  border-radius: 10px;
+  background: linear-gradient(180deg, #ff6a00, #ff4f00);
+  color: #fff;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(255, 79, 0, 0.4);
+  user-select: none;
+  font-family: "Microsoft YaHei", sans-serif;
+}
+.tb1688-fab:hover { filter: brightness(1.08); }
+.tb1688-fab-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.22);
+  font-size: 12px;
+  font-weight: 700;
+}
+.tb1688-fab-text { writing-mode: vertical-lr; letter-spacing: 2px; }

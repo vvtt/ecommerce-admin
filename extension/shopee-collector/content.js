@@ -178,6 +178,7 @@
   }, 800);
 
   // ================= 消息桥梁 =================
+  // （搜索页批量采集浮标已随搜索自动上报一并移除，2026-10-21）
 
   window.addEventListener('message', function (e) {
     if (e.source !== window) return;
@@ -195,6 +196,7 @@
     }
     if (d.type === 'api') toBackground({ type: 'api', payload: d.payload });
     else if (d.type === 'page_html') toBackground({ type: 'page_html', payload: d.payload });
+    // （search 类型已移除：插件不再上报搜索结果，2026-10-21）
     else if (d.type === 'ratings_status') {
       onPanelEvent('ratings_status', d.payload);
       toBackground({ type: 'ratings_status', payload: d.payload });

@@ -1,0 +1,18 @@
+{
+  "manifest_version": 3,
+  "name": "淘宝→1688 找同款",
+  "version": "1.0.0",
+  "description": "在淘宝/天猫商品页一键用主图在 1688 以图搜同款；任意网页图片右键也能搜",
+  "permissions": ["contextMenus"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://*.taobao.com/*", "https://*.tmall.com/*", "https://*.tmall.hk/*"],
+      "js": ["lib.js", "content.js"],
+      "css": ["content.css"],
+      "run_at": "document_idle"
+    }
+  ]
+}

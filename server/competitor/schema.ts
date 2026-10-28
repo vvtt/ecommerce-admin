@@ -42,4 +42,52 @@ CREATE TABLE IF NOT EXISTS products (
 );
 CREATE INDEX IF NOT EXISTS idx_products_cat  ON products(cat_id);
 CREATE INDEX IF NOT EXISTS idx_products_name ON products(name);
+
+-- 搜索批量采集的标签表：tag = 搜索关键字，同一商品可被多个关键字命中（多对多）。
+-- UNIQUE 让重复抓取/重复打标天然幂等（INSERT OR IGNORE）。
+CREATE TABLE IF NOT EXISTS product_tags (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    shop_id     INTEGER NOT NULL,
+    item_id     INTEGER NOT NULL,
+    tag         TEXT NOT NULL,
+    created_at  TEXT,
+    UNIQUE(shop_id, item_id, tag)
+);
+CREATE INDEX IF NOT EXISTS idx_product_tags_tag ON product_tags(tag);
+
+-- 批量采集任务表：跑批从内存状态机升级为 DB 持久化，
+-- 前端刷新 / server 重启后历史任务与进度依然可查。
+-- kind：ratings = 商品详情 + 评论一起采（PDP 接口在采评论的窗口里顺带截获）。
+CREATE TABLE IF NOT EXISTS collect_tasks (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    kind         TEXT NOT NULL,                     -- ratings（预留 search/full）
+    tag          TEXT,                              -- 过滤标签（= 搜索关键字），null = 全部
+    max_pages    INTEGER,                           -- 每商品翻页上限
+    status       TEXT NOT NULL DEFAULT 'running',   -- running / done / stopped / failed
+    total        INTEGER NOT NULL DEFAULT 0,        -- 计划商品数
+    done         INTEGER NOT NULL DEFAULT 0,        -- 已处理（含失败）
+    success      INTEGER NOT NULL DEFAULT 0,
+    failed       INTEGER NOT NULL DEFAULT 0,
+    reviews      INTEGER NOT NULL DEFAULT 0,        -- 本任务累计新增评论文数
+    current_item TEXT,                              -- 正在采的商品（展示用）
+    current_step TEXT,                              -- 当前步骤（打开页面/滚动加载/翻页…）
+    error        TEXT,
+    created_at   TEXT,
+    updated_at   TEXT,
+    finished_at  TEXT
+);
+
+-- 任务明细：每个商品一行，能逐条看到谁成了谁败了、采到多少条评论。
+CREATE TABLE IF NOT EXISTS collect_task_items (
+    task_id  INTEGER NOT NULL,
+    shop_id  TEXT NOT NULL,
+    item_id  TEXT NOT NULL,
+    name     TEXT,
+    status   TEXT NOT NULL DEFAULT 'pending',       -- pending / running / done / failed
+    reviews  INTEGER NOT NULL DEFAULT 0,            -- 该商品新增评论文数
+    pdp_saved INTEGER NOT NULL DEFAULT 0,           -- 商品详情是否顺带补全
+    error    TEXT,
+    PRIMARY KEY (task_id, shop_id, item_id)
+);
+CREATE INDEX IF NOT EXISTS idx_task_items_task ON collect_task_items(task_id);
 `;

@@ -28,3 +28,20 @@ server/browser/extensions.json
 
 # WorkBuddy 本地工作数据（工作记忆/会话日志，非项目代码）
 .workbuddy/
+server/browser/collect-profile/
+.tmp-c1688/
+
+# 描述批量生成域运行时数据（SQLite 库 / LLM 配置含 apiKey，严禁入库）
+server/descbatch/descbatch.db
+server/descbatch/descbatch.db-*
+server/descbatch/config.json
+
+# 排障探针的截图/抓包临时产物（探针脚本本身保留）
+scripts/.*
+
+# 一次性临时产物（复现脚本、匿名探针 profile、压缩包）
+.tmp-*/
+tmp-*.mjs
+tmp-*.png
+start-dev.zip
+server/browser/.probe-anon*/

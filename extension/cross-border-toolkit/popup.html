@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <div class="head">
+    <b>跨境电商工具箱</b>
+    <span id="site" class="site">…</span>
+  </div>
+
+  <div class="row">
+    <span class="label">全网图片搜 1688</span>
+    <input type="checkbox" id="tg-imageSearch" class="switch" />
+    <em class="hint">任意网站：悬停图片点角标 / Alt+点图 / 右键菜单</em>
+  </div>
+  <div class="row" id="row-sourcing">
+    <span class="label">1688 货源采集</span>
+    <input type="checkbox" id="tg-sourcing" class="switch" />
+    <em class="hint">仅 1688 商品页出现浮层</em>
+  </div>
+  <div class="row" id="row-shopee">
+    <span class="label">Shopee 采集</span>
+    <input type="checkbox" id="tg-shopee" class="switch" />
+    <em class="hint">仅 Shopee 商品页出现浮窗</em>
+  </div>
+
+  <div id="shopee-stats" class="stats"></div>
+
+  <div class="foot">
+    <button id="open-options">后端地址设置</button>
+    <em class="hint">采集模块的开关刷新页面后生效</em>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

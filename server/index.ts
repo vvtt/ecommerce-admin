@@ -12,13 +12,13 @@ import { createServer as createViteServer } from "vite";
 import { getOverview } from "../shared/queries";
 import { categoriesRouter } from "./routes/categories";
 import { authRouter, requireApiAuth } from "./routes/auth";
-import { browserRouter, handleBrowserUpgrade } from "./routes/browser";
+import { browserRouter } from "./routes/browser";
 import { competitorRouter } from "./routes/competitor";
+import { descBatchRouter } from "./routes/descbatch";
 import { inventoryRouter } from "./routes/inventory";
 import { productsRouter } from "./routes/products";
 import { purchaseRouter } from "./routes/purchase";
 import { sourcingRouter } from "./routes/sourcing";
-import { describeCollectToken } from "./sourcing/auth";
 import { UPLOAD_DIR } from "./sourcing/client";
 import { ingestStuckPending } from "./sourcing/images";
 
@@ -52,6 +52,7 @@ async function startServer() {
   app.use("/api/purchase-orders", purchaseRouter);
   app.use("/api/sourcing", sourcingRouter);
   app.use("/api/competitor", competitorRouter);
+app.use("/api/descbatch", descBatchRouter);
   app.use("/api/browser", browserRouter);
 
   // 未匹配到的 /api/* 返回 404 JSON，避免被下面的 SPA 回退吞成 index.html
@@ -85,21 +86,26 @@ async function startServer() {
     });
   }
 
-  const httpServer = app.listen(PORT, "0.0.0.0", () => {
+  app.listen(PORT, "0.0.0.0", () => {
     console.log(`跨境电商后台已启动 → http://localhost:${PORT}`);
-    console.log(`[sourcing] ${describeCollectToken()}`);
 
     // 上次进程如果在图片下完之前被杀，主表会停在 pending 且不会再有上报来触发。
     // 启动时补跑一轮即可自愈。异步执行，不阻塞启动。
     void ingestStuckPending().catch((error) => {
       console.error("[sourcing] 启动补跑图片转存失败", error);
     });
+
+    // 采集任务孤儿 running 自愈：跑批状态只存进程内存，重启后 running 必是孤儿。
+    // 不清会挡 ↻ 重试，且任务页永远转圈。
+    void (async () => {
+      const { healOrphanRunningTasks } = await import("./competitor/repository");
+      const healed = healOrphanRunningTasks();
+      if (healed > 0) console.log(`[competitor] 已自动收尾 ${healed} 个孤儿 running 任务`);
+    })().catch((error) => {
+      console.error("[competitor] 启动自愈失败", error);
+    });
   });
 
-  // 内嵌浏览器的 WebSocket 通道：upgrade 事件不经过 express 路由，需在 http server 上单独挂
-  httpServer.on("upgrade", (request, socket, head) => {
-    handleBrowserUpgrade(request, socket, head);
-  });
 }
 
 startServer();
